@@ -1,8 +1,7 @@
-version: '3.8'
-
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -13,6 +12,7 @@ services:
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
     depends_on:
       - zookeeper
     ports:
@@ -28,28 +28,23 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
     networks:
       - kafka-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  mysql_primary:
-    image: mysql:8.0
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: db_principale
+  kafka-rest-proxy:
+    image: confluentinc/cp-kafka-rest:7.5.0
+    container_name: kafka-rest-proxy
+    depends_on:
+      - kafka
     ports:
-      - "3306:3306"
-    volumes:
-      - mysql_primary_data:/var/lib/mysql
-    networks:
-      - kafka-network
-
-  mysql_secondary:
-    image: mysql:8.0
+      - "8082:8082"
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: db_secondaire
-    ports:
-      - "3307:3306"
-    volumes:
-      - mysql_secondary_data:/var/lib/mysql
+      KAFKA_REST_HOST_NAME: kafka-rest-proxy
+      KAFKA_REST_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_REST_LISTENERS: "http://0.0.0.0:8082"
     networks:
       - kafka-network
 
@@ -76,8 +71,6 @@ services:
       - kafka-network
 
 volumes:
-  mysql_primary_data:
-  mysql_secondary_data:
   netdataconfig:
   netdatalib:
   netdatacache:
