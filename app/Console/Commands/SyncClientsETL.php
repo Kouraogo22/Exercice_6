@@ -37,7 +37,7 @@ class SyncClientsETL extends Command
      */
     public function handle()
     {
-        $this->info('🚀 Démarrage du processus ETL...');
+        $this->info('Démarrage du processus ETL...');
         $this->newLine();
 
         $startTime = microtime(true);
