@@ -13,13 +13,12 @@
 
 - php artisan Key Générate 
 
-## Effectuer les migrations 
+## Effectuer les migrations ( création des 2 bases de données)
 
 - php artisan migrate
-puis
 - php artisan migrate --database=mysql_second
 
-## Créer des donnés dans la base de donnée
+## Créer des données dans la base de donnée
 
 - php artisan db:seed --class=ClientSeeder
 
@@ -27,7 +26,7 @@ puis
 
 - php artisan serve 
 
-## Démarrer docker avec les commande suivantes ( il faut voir docker installer sur sa machine )
+## Démarrer docker avec les commandes suivantes ( il faut voir docker installer sur sa machine )
 
 - docker-compose down
 - docker volume prune
@@ -37,7 +36,7 @@ puis
 
 - http://localhost:8000/soap/server
 
-## Commande pour tester le fonction de la base de donnée maître esclave synchroniser par kafka 
+## Commande pour tester le fonctionnement de la base de donnée maître esclave synchroniser par kafka 
 
 -  php artisan clients:sync-etl
 -  php artisan kafka:consume
