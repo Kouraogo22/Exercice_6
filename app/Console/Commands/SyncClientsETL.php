@@ -50,17 +50,17 @@ class SyncClientsETL extends Command
             $duration = round($endTime - $startTime, 2);
 
             if ($result['success']) {
-                $this->info("✅ {$result['message']}");
-                $this->info("📊 Nombre de clients synchronisés: {$result['count']}");
-                $this->info("⏱️  Temps d'exécution: {$duration} secondes");
+                $this->info("{$result['message']}");
+                $this->info("Nombre de clients synchronisés: {$result['count']}");
+                $this->info("Temps d'exécution: {$duration} secondes");
 
                 return Command::SUCCESS;
             } else {
-                $this->error("❌ Erreur: {$result['message']}");
+                $this->error("Erreur: {$result['message']}");
                 return Command::FAILURE;
             }
         } catch (\Exception $e) {
-            $this->error("❌ Erreur critique: " . $e->getMessage());
+            $this->error("Erreur critique: " . $e->getMessage());
             $this->error($e->getTraceAsString());
 
             return Command::FAILURE;
