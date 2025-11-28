@@ -36,7 +36,7 @@
 
 - http://localhost:8000/soap/server
 
-## Commande pour tester le fonctionnement de la base de donnée maître esclave synchroniser par kafka 
+## Commande pour tester le fonctionnement de la base de donnée maître esclave synchroniser avec Apache kafka 
 
 -  php artisan clients:sync-etl
 -  php artisan kafka:consume
