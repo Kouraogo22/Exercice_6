@@ -2,81 +2,136 @@
 
 namespace App\Console\Commands;
 
+use App\Services\ETLService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
-class KafkaMonitorCommand extends Command
+class KafkaConsumerCommand extends Command
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'kafka:monitor';
+    protected $signature = 'kafka:consume
+                            {--topic=client-sync : Le topic Kafka à consommer}
+                            {--timeout=30 : Timeout en secondes}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Monitorer l\'état de Kafka et afficher les statistiques';
+    protected $description = 'Consumer Kafka qui écoute les messages et traite la synchronisation';
+
+    protected $etlService;
+
+    /**
+     * Create a new command instance.
+     */
+    public function __construct(ETLService $etlService)
+    {
+        parent::__construct();
+        $this->etlService = $etlService;
+    }
 
     /**
      * Execute the console command.
      */
     public function handle()
     {
+        $topic = $this->option('topic');
+        $timeout = (int) $this->option('timeout');
         $kafkaRestUrl = env('KAFKA_REST_PROXY_URL', 'http://localhost:8082');
 
-        $this->info("📊 Monitoring Kafka");
+        $this->info("🎧 Démarrage du consumer Kafka...");
+        $this->info("📡 Topic: {$topic}");
+        $this->info("⏱️  Timeout: {$timeout}s");
         $this->newLine();
 
-        try {
-            // Vérifier la connexion
-            $this->info("🔍 Vérification de la connexion...");
-            $response = Http::get("{$kafkaRestUrl}/topics");
+        // Lire depuis les logs fichiers (plus simple et plus fiable)
+        $logFile = storage_path("logs/kafka_{$topic}.log");
 
-            if ($response->successful()) {
-                $this->info("✅ Connexion Kafka OK");
-                $this->newLine();
+        if (!file_exists($logFile)) {
+            $this->warn("⚠️  Aucun message dans le log Kafka pour le topic '{$topic}'");
+            $this->info("💡 Lancez d'abord: php artisan clients:sync-etl");
+            return Command::SUCCESS;
+        }
 
-                $topics = $response->json();
+        $this->info("📖 Lecture des messages depuis le log Kafka...");
+        $this->newLine();
 
-                $this->info("📋 Topics disponibles:");
-                $this->table(['Topic'], array_map(fn($topic) => [$topic], $topics));
+        $lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        $messageCount = count($lines);
 
-                // Vérifier le topic client-sync
-                if (in_array('client-sync', $topics)) {
-                    $this->info("✅ Topic 'client-sync' trouvé");
+        if ($messageCount === 0) {
+            $this->warn("⚠️  Aucun message trouvé");
+            return Command::SUCCESS;
+        }
 
-                    // Obtenir les détails du topic
-                    $topicDetails = Http::get("{$kafkaRestUrl}/topics/client-sync");
+        $this->info("📨 {$messageCount} messages trouvés");
+        $this->newLine();
 
-                    if ($topicDetails->successful()) {
-                        $details = $topicDetails->json();
-                        $this->newLine();
-                        $this->info("📝 Détails du topic 'client-sync':");
-                        $this->line("  • Nom: " . ($details['name'] ?? 'N/A'));
-                        $this->line("  • Partitions: " . count($details['partitions'] ?? []));
-                    }
-                } else {
-                    $this->warn("⚠️  Topic 'client-sync' non trouvé");
-                    $this->info("💡 Il sera créé automatiquement lors de la première publication");
+        $displayCount = min(10, $messageCount); // Afficher max 10 derniers messages
+        $lastMessages = array_slice($lines, -$displayCount);
+
+        foreach ($lastMessages as $index => $line) {
+            try {
+                $message = json_decode($line, true);
+                if ($message) {
+                    $this->processMessage($message);
                 }
-
-            } else {
-                $this->error("❌ Impossible de se connecter à Kafka");
-                $this->error("Status: " . $response->status());
+            } catch (\Exception $e) {
+                $this->warn("⚠️  Message mal formé ignoré");
             }
+        }
 
-        } catch (\Exception $e) {
-            $this->error("❌ Erreur: " . $e->getMessage());
+        if ($messageCount > $displayCount) {
             $this->newLine();
-            $this->warn("💡 Assurez-vous que Docker est démarré:");
-            $this->line("   docker-compose up -d");
+            $this->comment("💡 {$messageCount} messages au total (affichage des {$displayCount} derniers)");
         }
 
         $this->newLine();
+        $this->info("✅ Consumer terminé");
         return Command::SUCCESS;
+    }
+
+    /**
+     * Traiter un message Kafka
+     */
+    private function processMessage($message)
+    {
+        try {
+            $email = $message['email'] ?? 'N/A';
+            $nom = $message['nom'] ?? '';
+            $prenom = $message['prenom'] ?? '';
+
+            $this->line("┌─────────────────────────────────────");
+            $this->info("│  Client: {$nom} {$prenom}");
+            $this->line("│  Email: {$email}");
+
+            if (isset($message['telephone'])) {
+                $this->line("│ Tél: {$message['telephone']}");
+            }
+
+            if (isset($message['statut'])) {
+                $this->line("│  Statut: {$message['statut']}");
+            }
+
+            if (isset($message['synced_at'])) {
+                $this->line("│ Sync: {$message['synced_at']}");
+            }
+
+            $this->line("└─────────────────────────────────────");
+            $this->info(" Message traité avec succès");
+            $this->newLine();
+
+        } catch (\Exception $e) {
+            $this->error(" Erreur de traitement: " . $e->getMessage());
+            Log::error("Message Processing Error", [
+                'message' => $message,
+                'error' => $e->getMessage()
+            ]);
+        }
     }
 }
